@@ -199,7 +199,7 @@ for c in cat_order:
         summary = html.escape(it["summary"]).replace("&amp;"," ")
         source = html.escape(it["source"])
         pub = html.escape(it["published"])
-
+link=it["link']
         parts.append(
             f'<li><a href=" {link}"target="_blank">{title}</a >'
             f'<br><small>{source} {pub}</small>'
