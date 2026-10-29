@@ -196,7 +196,7 @@ for c in cat_order:
 
     for it in arr:
         title = html.escape(it["title"])
-        summary = html.escape(it["summary"])
+        summary = html.escape(it["summary"]).replace("&amp;",""")
         source = html.escape(it["source"])
         pub = html.escape(it["published"])
 
