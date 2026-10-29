@@ -196,12 +196,12 @@ for c in cat_order:
 
     for it in arr:
         title = html.escape(it["title"])
-        summary = html.escape(it["summary"]).replace("&amp;",""")
+        summary = html.escape(it["summary"]).replace("&amp;"," ")
         source = html.escape(it["source"])
         pub = html.escape(it["published"])
 
         parts.append(
-            f'<li><a href=" {link}"target="blank">{title}</a >'
+            f'<li><a href=" {link}"target="_blank">{title}</a >'
             f'<br><small>{source} {pub}</small>'
             f'<br>{summary}</li>'
         )
