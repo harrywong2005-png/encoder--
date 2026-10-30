@@ -14,13 +14,9 @@ SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASS = os.getenv("SMTP_PASS")
 MAIL_TO = os.getenv("MAIL_TO", "harrywong2005@126.com")
 
-# 优化了 RSS 源：Google News 增加了 OR 检索词，并限制最近7天 (when:7d) 保证新闻新鲜度
 FEEDS = [
-    # 中文搜索 (扩大了搜索范围)
     "https://news.google.com/rss/search?q=%E7%BC%96%E7%A0%81%E5%99%A8+OR+%E4%BC%BA%E6%9C%8D%E7%94%B5%E6%9C%BA+OR+%E8%BF%90%E5%8A%A8%E6%8E%A7%E5%88%B6+when:7d&hl=zh-CN&gl=CN&ceid=CN:zh-Hans",
-    # 英文新品
-    "https://news.google.com/rss/search?q=encoder+OR+servo+OR+actuator+OR+robotics+when:7d&hl=en-US&gl=US&ceid=US:en",
-    # 行业媒体
+    "https://news.google.com/rss/search?q=encoder+OR+servo+OR+actuator+when:7d&hl=en-US&gl=US&ceid=US:en",
     "https://spectrum.ieee.org/feeds/topic/robotics.rss",
     "https://www.therobotreport.com/feed/",
     "https://www.controleng.com/feed/",
@@ -30,17 +26,14 @@ FEEDS = [
     "https://www.automationworld.com/rss.xml",
 ]
 
-# 【重点放宽】增加了上下游词汇（伺服、电机、机器人、运动控制等）
+# 【优化】移除了过于宽泛的词汇（如单纯机器人、传感器），保留核心词
 ENCODER_KW = [
     "编码器", "旋转编码器", "绝对值编码器", "增量式编码器", "磁编码器", "光编码器",
     "光电编码器", "电容编码器", "电感编码器", "中空轴", "多圈", "单圈", "伺服编码器",
     "电机编码器", "位置传感器", "角度传感器", "旋变", "多摩川", "海德汉", "雷尼绍",
     "堡盟", "西克", "倍加福", "图尔克", "易福门", "库伯勒", "禹衡", "奥通", "瑞普",
     "汇川", "禾川", "埃斯顿", "鸣志", "雷赛", "步科", "纳芯微", "赛卓", "麦歌恩",
-    "多维科技", "矽睿", "明皜",
-    # === 新增的放宽词汇 ===
-    "伺服电机", "伺服系统", "步进电机", "运动控制", "机器人", "机械臂", "自动化",
-    "传动", "电机", "传感器", "反馈系统",
+    "多维科技", "矽睿", "明皜", "伺服电机", "运动控制", "机械臂",
     
     "encoder", "rotary encoder", "absolute encoder", "incremental encoder",
     "magnetic encoder", "optical encoder", "capacitive encoder", "inductive encoder",
@@ -50,10 +43,8 @@ ENCODER_KW = [
     "pepperl+fuchs", "turck", "ifm", "posital", "fraba", "kubler", "siko",
     "tr electronic", "leine linde", "lenord+bauer", "wachendorff", "hengstler",
     "dynapar", "encoder products", "us digital", "cui devices", "broadcom",
-    "ic-haus", "netzer", "zettlex", "celera motion", "gurley",
-    # === 新增的放宽词汇 ===
-    "servo motor", "servo drive", "stepper motor", "motion control",
-    "robotics", "actuator", "automation", "sensor", "feedback"
+    "ic-haus", "netzer", "zettlex", "celera motion", "gurley", "servo motor",
+    "servo drive", "stepper motor", "motion control", "actuator"
 ]
 
 NEW_KW = [
@@ -116,24 +107,48 @@ def classify(title, summary):
         return "技术"
     return "其他"
 
+def clean_html(raw_html):
+    """彻底清理 HTML 标签和多余字符"""
+    if not raw_html:
+        return ""
+    # 移除 HTML 标签
+    cleanr = re.compile('<.*?>')
+    cleantext = re.sub(cleanr, '', raw_html)
+    # 替换 HTML 实体 (比如 &nbsp;, &amp;)
+    cleantext = html.unescape(cleantext)
+    # 替换不间断空格
+    cleantext = cleantext.replace('\xa0', ' ')
+    return cleantext.strip()
+
 items = []
 
 for feed_url in FEEDS:
     try:
         feed = feedparser.parse(feed_url)
-        source = feed.feed.get("title", feed_url)
+        # 获取源名字
+        source_title = feed.feed.get("title", feed_url)
 
-        # 每个源最多取 30 条
         for e in feed.entries[:30]:
-            title = e.get("title", "")
-            summary = e.get("summary", "") or e.get("description", "")
+            raw_title = e.get("title", "")
+            raw_summary = e.get("summary", "") or e.get("description", "")
             link = e.get("link", "")
+
+            # 【清洗 1】处理 Google News 恶心的标题格式（通常是 "标题 - 媒体名"）
+            if "Google" in source_title and " - " in raw_title:
+                title_parts = raw_title.rsplit(" - ", 1)
+                title = title_parts[0].strip()
+                real_source = title_parts[1].strip() # 提取真实的媒体名
+            else:
+                title = raw_title.strip()
+                real_source = source_title
+
+            # 【清洗 2】清理摘要中的 HTML 标签和 nbsp;
+            summary = clean_html(raw_summary)[:250]
 
             if not link or not title:
                 continue
 
             text = f"{title} {summary}"
-            # 这行是硬门槛：必须包含放宽后的关键词之一
             if not hit(text, ENCODER_KW):
                 continue
 
@@ -150,10 +165,10 @@ for feed_url in FEEDS:
                 ts = dt.datetime(*e.updated_parsed[:6], tzinfo=dt.timezone.utc).timestamp()
 
             items.append({
-                "title": title.strip(),
+                "title": title,
                 "link": link,
-                "summary": re.sub("<[^>]+>", "", summary)[:220],
-                "source": source,
+                "summary": summary,
+                "source": real_source,
                 "published": published,
                 "ts": ts,
                 "score": sc,
@@ -163,12 +178,13 @@ for feed_url in FEEDS:
     except Exception as ex:
         print("feed error:", feed_url, ex)
 
-# 去重 + 新品优先排序
+# 【清洗 3】强化去重逻辑（针对 Google News 的转载新闻）
 seen = set()
 uniq = []
 
 for it in sorted(items, key=lambda x: (x["score"], x["ts"]), reverse=True):
-    key = re.sub(r"\W+", "", it["title"].lower())[:80] or it["link"]
+    # 提取纯文字前 40 个字符作为唯一标识，忽略标点和来源后缀
+    key = re.sub(r'\W+', '', it["title"].lower())[:40] 
     if key in seen:
         continue
     seen.add(key)
@@ -186,31 +202,31 @@ today = dt.datetime.now(dt.timezone(dt.timedelta(hours=8))).strftime("%Y-%m-%d")
 
 parts = [
     f"<h2>编码器每日简报 {today}（新品优先·中文）</h2>",
-    "<p>覆盖：编码器 / 旋转编码器 / 绝对值 / 磁/光/电容/电感 / 伺服电机编码器 / "
+    "<p style='color:#555;'>覆盖：编码器 / 旋转编码器 / 绝对值 / 磁/光/电容/电感 / 伺服电机编码器 / "
     "位置角度传感器 / 运动控制 / 机器人 / 伺服。</p >",
+    "<hr>"
 ]
 
-# === 修复了之前的缩进错误，并且优化了 HTML 排版 ===
 for c in cat_order:
     arr = grouped.get(c, [])
     if not arr:
         continue
 
-    parts.append(f"<h3>{c}</h3><ol>")
+    parts.append(f"<h3 style='color:#0056b3;'>{c}</h3><ol>")
 
     for it in arr:
         title = html.escape(it["title"])
-        summary = html.escape(it["summary"]).replace("&amp;", " ")
+        summary = html.escape(it["summary"])
         source = html.escape(it["source"])
         pub = html.escape(it["published"])
-        link = it["link"]  # 修复缩进：在循环内部获取 link
+        link = it["link"]  
         
-        # 修复缩进：append 必须在 for 循环内部
-        # 修复了 href 里面多余的空格
         parts.append(
-            f'<li><a href=" " target="_blank">{title}</a >'
-            f'<br><small style="color:#666;">{source} | {pub}</small>'
-            f'<br>{summary}</li>'
+            f'<li style="margin-bottom:12px;">'
+            f'<a href="{link}" target="_blank" style="font-weight:bold;text-decoration:none;color:#333;">{title}</a>'
+            f'<br><small style="color:#888;">{source} | {pub}</small>'
+            f'<br><span style="color:#444;">{summary}</span>'
+            f'</li>'
         )
 
     parts.append("</ol>")
@@ -218,7 +234,7 @@ for c in cat_order:
 if not any(grouped.values()):
     parts.append("<p>今天没有抓到匹配条目，可能是源暂时不可用或关键词过窄。</p >")
 
-parts.append("<p style='color:#999;font-size:12px;'>由自动脚本生成。</p >")
+parts.append("<hr><p style='color:#999;font-size:12px;'>由自动脚本生成。</p >")
 html_body = "\n".join(parts)
 
 if not SMTP_USER or not SMTP_PASS:
