@@ -206,7 +206,7 @@ parts.append(
             f'<br>{summary}</li>'
         )
 
-    parts.append("</ol>")
+parts.append("</ol>")
 
 if not any(grouped.values()):
     parts.append("<p>今天没有抓到匹配条目，可能是源暂时不可用或关键词过窄。</p >")
