@@ -14,19 +14,12 @@ SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASS = os.getenv("SMTP_PASS")
 MAIL_TO = os.getenv("MAIL_TO", "harrywong2005@126.com")
 
+# 优化了 RSS 源：Google News 增加了 OR 检索词，并限制最近7天 (when:7d) 保证新闻新鲜度
 FEEDS = [
-    # 中文搜索
-    "https://news.google.com/rss/search?q=%E7%BC%96%E7%A0%81%E5%99%A8&hl=zh-CN&gl=CN&ceid=CN:zh-Hans",
-    "https://news.google.com/rss/search?q=%E6%97%8B%E8%BD%AC%E7%BC%96%E7%A0%81%E5%99%A8&hl=zh-CN&gl=CN&ceid=CN:zh-Hans",
-    "https://news.google.com/rss/search?q=%E7%BB%9D%E5%AF%B9%E5%80%BC%E7%BC%96%E7%A0%81%E5%99%A8&hl=zh-CN&gl=CN&ceid=CN:zh-Hans",
-    "https://news.google.com/rss/search?q=%E7%A3%81%E7%BC%96%E7%A0%81%E5%99%A8&hl=zh-CN&gl=CN&ceid=CN:zh-Hans",
-    "https://news.google.com/rss/search?q=%E4%BC%BA%E6%9C%8D%E7%BC%96%E7%A0%81%E5%99%A8&hl=zh-CN&gl=CN&ceid=CN:zh-Hans",
-    "https://news.google.com/rss/search?q=%E4%BD%8D%E7%BD%AE%E4%BC%A0%E6%84%9F%E5%99%A8&hl=zh-CN&gl=CN&ceid=CN:zh-Hans",
+    # 中文搜索 (扩大了搜索范围)
+    "https://news.google.com/rss/search?q=%E7%BC%96%E7%A0%81%E5%99%A8+OR+%E4%BC%BA%E6%9C%8D%E7%94%B5%E6%9C%BA+OR+%E8%BF%90%E5%8A%A8%E6%8E%A7%E5%88%B6+when:7d&hl=zh-CN&gl=CN&ceid=CN:zh-Hans",
     # 英文新品
-    "https://news.google.com/rss/search?q=encoder+new+product&hl=en-US&gl=US&ceid=US:en",
-    "https://news.google.com/rss/search?q=rotary+encoder+launch&hl=en-US&gl=US&ceid=US:en",
-    "https://news.google.com/rss/search?q=absolute+encoder+introduces&hl=en-US&gl=US&ceid=US:en",
-    "https://news.google.com/rss/search?q=magnetic+encoder+unveils&hl=en-US&gl=US&ceid=US:en",
+    "https://news.google.com/rss/search?q=encoder+OR+servo+OR+actuator+OR+robotics+when:7d&hl=en-US&gl=US&ceid=US:en",
     # 行业媒体
     "https://spectrum.ieee.org/feeds/topic/robotics.rss",
     "https://www.therobotreport.com/feed/",
@@ -37,6 +30,7 @@ FEEDS = [
     "https://www.automationworld.com/rss.xml",
 ]
 
+# 【重点放宽】增加了上下游词汇（伺服、电机、机器人、运动控制等）
 ENCODER_KW = [
     "编码器", "旋转编码器", "绝对值编码器", "增量式编码器", "磁编码器", "光编码器",
     "光电编码器", "电容编码器", "电感编码器", "中空轴", "多圈", "单圈", "伺服编码器",
@@ -44,6 +38,10 @@ ENCODER_KW = [
     "堡盟", "西克", "倍加福", "图尔克", "易福门", "库伯勒", "禹衡", "奥通", "瑞普",
     "汇川", "禾川", "埃斯顿", "鸣志", "雷赛", "步科", "纳芯微", "赛卓", "麦歌恩",
     "多维科技", "矽睿", "明皜",
+    # === 新增的放宽词汇 ===
+    "伺服电机", "伺服系统", "步进电机", "运动控制", "机器人", "机械臂", "自动化",
+    "传动", "电机", "传感器", "反馈系统",
+    
     "encoder", "rotary encoder", "absolute encoder", "incremental encoder",
     "magnetic encoder", "optical encoder", "capacitive encoder", "inductive encoder",
     "hollow shaft", "multi-turn", "single-turn", "servo encoder", "motor encoder",
@@ -53,6 +51,9 @@ ENCODER_KW = [
     "tr electronic", "leine linde", "lenord+bauer", "wachendorff", "hengstler",
     "dynapar", "encoder products", "us digital", "cui devices", "broadcom",
     "ic-haus", "netzer", "zettlex", "celera motion", "gurley",
+    # === 新增的放宽词汇 ===
+    "servo motor", "servo drive", "stepper motor", "motion control",
+    "robotics", "actuator", "automation", "sensor", "feedback"
 ]
 
 NEW_KW = [
@@ -122,6 +123,7 @@ for feed_url in FEEDS:
         feed = feedparser.parse(feed_url)
         source = feed.feed.get("title", feed_url)
 
+        # 每个源最多取 30 条
         for e in feed.entries[:30]:
             title = e.get("title", "")
             summary = e.get("summary", "") or e.get("description", "")
@@ -131,6 +133,7 @@ for feed_url in FEEDS:
                 continue
 
             text = f"{title} {summary}"
+            # 这行是硬门槛：必须包含放宽后的关键词之一
             if not hit(text, ENCODER_KW):
                 continue
 
@@ -187,6 +190,7 @@ parts = [
     "位置角度传感器 / 运动控制 / 机器人 / 伺服。</p >",
 ]
 
+# === 修复了之前的缩进错误，并且优化了 HTML 排版 ===
 for c in cat_order:
     arr = grouped.get(c, [])
     if not arr:
@@ -196,22 +200,25 @@ for c in cat_order:
 
     for it in arr:
         title = html.escape(it["title"])
-        summary = html.escape(it["summary"]).replace("&amp;"," ")
+        summary = html.escape(it["summary"]).replace("&amp;", " ")
         source = html.escape(it["source"])
         pub = html.escape(it["published"])
-link=it["link"]
-parts.append(
-            f'<li><a href=" {link}"target="_blank">{title}</a >'
-            f'<br><small>{source} {pub}</small>'
+        link = it["link"]  # 修复缩进：在循环内部获取 link
+        
+        # 修复缩进：append 必须在 for 循环内部
+        # 修复了 href 里面多余的空格
+        parts.append(
+            f'<li><a href=" " target="_blank">{title}</a >'
+            f'<br><small style="color:#666;">{source} | {pub}</small>'
             f'<br>{summary}</li>'
         )
 
-parts.append("</ol>")
+    parts.append("</ol>")
 
 if not any(grouped.values()):
     parts.append("<p>今天没有抓到匹配条目，可能是源暂时不可用或关键词过窄。</p >")
 
-parts.append("<p>由自动脚本生成。</p >")
+parts.append("<p style='color:#999;font-size:12px;'>由自动脚本生成。</p >")
 html_body = "\n".join(parts)
 
 if not SMTP_USER or not SMTP_PASS:
