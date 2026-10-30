@@ -200,7 +200,7 @@ for c in cat_order:
         source = html.escape(it["source"])
         pub = html.escape(it["published"])
 link=it["link"]
-        parts.append(
+parts.append(
             f'<li><a href=" {link}"target="_blank">{title}</a >'
             f'<br><small>{source} {pub}</small>'
             f'<br>{summary}</li>'
